@@ -11,6 +11,7 @@
 #pragma once
 
 #include "utlstring.h"
+#include "globalsymbol.h"
 #include "murmurhash3.h"
 #include "type_traits"
 #include <utility>
@@ -174,6 +175,17 @@ template <> struct DefaultHashFunctor<unsigned long long> : IntegerHashFunctor<u
 template <> struct DefaultHashFunctor<void*> : PointerHashFunctor { };
 template <> struct DefaultHashFunctor<const void*> : PointerHashFunctor { };
 template <> struct DefaultHashFunctor<CUtlStringToken> { unsigned int operator()( const CUtlStringToken &k ) const { return k.GetHashCode(); } };
+template <> struct DefaultHashFunctor<CGlobalSymbol>
+{
+	unsigned int operator()( const CGlobalSymbol &symbol ) const
+	{
+		// Use the hash cached with the interned string.
+		uint32 hash = 0;
+		if ( symbol.IsValid() )
+			V_memcpy( &hash, symbol.String() - sizeof( hash ), sizeof( hash ) );
+		return hash;
+	}
+};
 #if !defined(_MSC_VER) || defined(_NATIVE_WCHAR_T_DEFINED)
 template <> struct DefaultHashFunctor<wchar_t> : IntegerHashFunctor<wchar_t> { };
 #endif
