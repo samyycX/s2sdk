@@ -474,7 +474,7 @@ public:
 private:
 	friend class CPhysicsBody;
 	// AMNOTE: Does no work in this build; the complete signature remains unresolved.
-	virtual void unk001() = 0;
+	virtual void GetFrictionData() = 0;
 };
 
 // AMNOTE: Complete engine-owned iterator layout; other native overrides remain inherited.
