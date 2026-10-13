@@ -12,6 +12,7 @@
 #include "platform.h"
 #include "tier0/basetypes.h"
 #include "tier0/threadtools.h"
+#include "tier0/threadmutex.h"
 
 #define NTAB 32
 

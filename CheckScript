@@ -147,3 +147,18 @@ for sdk_target in SdkHelpers.sdk_targets:
   SdkHelpers.configureCxx(builder, binary, sdk)
 
 builder.Add(bstest)
+
+# Exercises mutex verification with a test assertion sink, without loading tier0.
+mutextest = builder.ProgramProject('threadmutex_test')
+mutextest.sources = [os.path.join('tests', 'run', 'threadmutex.cpp')]
+
+for cxx in HL2SDK.targets:
+  binary = mutextest.Configure(cxx, 'threadmutex_test', '{0} - {1}'.format(HL2SDK.tag, cxx.target.arch))
+  binary.compiler.cxxincludes += [
+    os.path.join(builder.sourcePath, 'public'),
+    os.path.join(builder.sourcePath, 'public', 'tier0'),
+  ]
+  if binary.compiler.target.platform == 'linux':
+    binary.compiler.linkflags += ['-pthread']
+
+builder.Add(mutextest)
