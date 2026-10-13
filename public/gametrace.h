@@ -135,7 +135,7 @@ public:
 	CPhysSurfacePropertiesVehicle()
 	{
 		m_wheelDrag = 0.0f;
-		m_wheelFrictionScale = 0.0f;
+		m_wheelFrictionScale = 1.0f;
 	}
 
 public:
@@ -151,6 +151,7 @@ public:
 		m_meleeImpact = "";
 		m_pushOff = "";
 		m_skidStop = "";
+		m_resonant = "";
 	}
 	
 public:
@@ -206,6 +207,7 @@ public:
 	CUtlString m_name;
 	uint32 m_nameHash;
 	uint32 m_baseNameHash;
+	// AMNOTE: Registry list indices; the base index is -1 when its name hash is absent.
 	int32 m_nListIndex;
 	int32 m_nBaseListIndex;
 	bool m_bHidden;
@@ -425,6 +427,9 @@ public:
 		m_nEntityId = 0;
 		m_nOwnerId = -1;
 		m_nHierarchyId = 0;
+		m_nDetailLayerMask = 0;
+		m_nDetailLayerMaskType = 0;
+		m_nTargetDetailLayer = 0;
 		m_nCollisionGroup = COLLISION_GROUP_ALWAYS;
 		m_nCollisionFunctionMask = FCOLLISION_FUNC_DEFAULT;
 	}
