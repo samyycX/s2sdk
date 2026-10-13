@@ -1769,8 +1769,6 @@ void CKV3Arena::Free( NODE *element, ClusterNodeChain<CLUSTER> &partial_clusters
 	
 	cluster->Free( element );
 
-	int num_allocated = cluster->NumAllocated();
-
 	if(cluster->NumCount() > 0)
 	{
 		if(cluster->NumCount() == cluster->NumAllocated() - 1)
