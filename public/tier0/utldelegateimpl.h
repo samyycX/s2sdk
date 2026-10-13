@@ -829,7 +829,7 @@ public:
 	template< class DerivedClass >
 	inline void CopyFrom (DerivedClass *pParent, const CUtlAbstractDelegate &right) 
 	{
-		pParent;
+		(void)pParent;
 		SetMementoFrom(right);
 	}
 	// For static functions, the 'static_function_invoker' class in the parent 
