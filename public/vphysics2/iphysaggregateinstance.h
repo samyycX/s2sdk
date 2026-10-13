@@ -5,6 +5,8 @@
 #pragma once
 #endif
 
+#include "physicslib/physaggregatedata.h"
+
 #include "tier0/platform.h"
 #include "schemasystem/minschema.h"
 #include "tier0/globalsymbol.h"
@@ -1046,13 +1048,13 @@ public:
 	// AMNOTE: Disables the two aggregate transform-update operations; it does not change body enabled state.
 	virtual void DisableTransformUpdates() = 0;
 
-private:
-	// AMNOTE: Inaccessible: applies a transform to keyframed bodies, optionally through their shadow controller; complete parameters remain unresolved.
-	virtual void UpdateKeyframedTransforms() = 0;
-	// AMNOTE: Inaccessible: applies a transform to dynamic bodies; the complete source transform parameter declaration remains unresolved.
-	virtual void UpdateDynamicTransforms() = 0;
-
 public:
+	// Applies resource bind poses, including their scale, to keyframed bodies. bTeleport bypasses their shadow controllers; otherwise flTimeOffset is passed to the shadow target update.
+	// Disabled transform updates and CPhysicsRagdollAggregate leave bodies unchanged.
+	virtual void UpdateKeyframedTransforms( const CTransform &transform, float flTimeOffset, bool bTeleport ) = 0;
+	// Applies resource bind poses, including their scale, to dynamic bodies. Disabled transform updates and CPhysicsRagdollAggregate leave bodies unchanged.
+	virtual void UpdateDynamicTransforms( const CTransform &transform ) = 0;
+
 	// AMNOTE: Returns the body sweep fraction. Only fractions below one move the bodies by the permitted displacement, then put them to sleep.
 	virtual float MoveByOffset( const Vector &vDisplacement ) = 0;
 
@@ -1301,6 +1303,8 @@ public:
 	Vector GetPosition() const override { return GetBodyCount() > 0 ? m_pRagdoll->GetBodies()[0]->GetPosition() : Vector( 0.0f, 0.0f, 0.0f ); }
 	bool AreTransformUpdatesEnabled() const override { return false; }
 	void DisableTransformUpdates() override {}
+	void UpdateKeyframedTransforms( const CTransform &, float, bool ) override {}
+	void UpdateDynamicTransforms( const CTransform & ) override {}
 	inline float MoveByOffset( const Vector &vDisplacement ) override;
 	float GetScale() const override { return GetBodyCount() > 0 ? m_pRagdoll->GetBodies()[0]->GetScaledTransform().m_vPosition.w : 1.0f; }
 	// AMNOTE: Unions only enabled body bounds.
