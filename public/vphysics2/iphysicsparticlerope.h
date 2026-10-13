@@ -354,21 +354,23 @@ inline Vector CPhysicsParticleRope::GetEndpointDirection( int nEndpoint ) const
 inline float CPhysicsParticleRope::GetLength() const
 {
 	const int nNodeCount = GetNodeCount();
-	float flLength = 0.0f;
+	fltx4 length = _mm_set_ss( 0.0f );
 	if ( nNodeCount > 1 )
 	{
 		Vector vPrevious = GetNodePosition( 0 );
 		for ( int nNode = 1; nNode < nNodeCount; ++nNode )
 		{
 			const Vector vPosition = GetNodePosition( nNode );
-			const float flX = vPrevious.x - vPosition.x;
-			const float flY = vPrevious.y - vPosition.y;
-			const float flZ = vPrevious.z - vPosition.z;
-			flLength += FastSqrt( flX * flX + flY * flY + flZ * flZ );
+			// Separate scalar SIMD operations retain the segment sum on fused multiply-add targets.
+			const fltx4 x = _mm_sub_ss( _mm_set_ss( vPrevious.x ), _mm_set_ss( vPosition.x ) );
+			const fltx4 y = _mm_sub_ss( _mm_set_ss( vPrevious.y ), _mm_set_ss( vPosition.y ) );
+			const fltx4 z = _mm_sub_ss( _mm_set_ss( vPrevious.z ), _mm_set_ss( vPosition.z ) );
+			const fltx4 lengthSquared = _mm_add_ss( _mm_add_ss( _mm_mul_ss( x, x ), _mm_mul_ss( y, y ) ), _mm_mul_ss( z, z ) );
+			length = _mm_add_ss( length, _mm_sqrt_ss( lengthSquared ) );
 			vPrevious = vPosition;
 		}
 	}
-	return flLength;
+	return SubFloat( length, 0 );
 }
 
 inline int CPhysicsParticleRope::FindNodeAtRestDistance( float flDistance ) const
