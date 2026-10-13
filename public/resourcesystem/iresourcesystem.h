@@ -14,7 +14,22 @@
 #include <memory>
 
 class CBufferString;
-class IAsyncProcessedDataResult;
+// AMNOTE: Owned by the returned unique_ptr; destruction releases the processed resource data.
+abstract_class IAsyncProcessedDataResult
+{
+public:
+	virtual ~IAsyncProcessedDataResult() = 0;
+
+protected:
+	IAsyncProcessedDataResult() = default;
+
+private:
+	IAsyncProcessedDataResult( const IAsyncProcessedDataResult & ) = delete;
+	IAsyncProcessedDataResult &operator=( const IAsyncProcessedDataResult & ) = delete;
+};
+
+inline IAsyncProcessedDataResult::~IAsyncProcessedDataResult() = default;
+
 class ICodeResourceManifestManager;
 class IFileSystem;
 class IRD_RegisterResourceDataUtils;
