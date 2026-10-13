@@ -13,6 +13,7 @@
 #include "schemasystem/minschema.h"
 #include "tier0/utldelegate.h"
 #include "mathlib/vector.h"
+#include "mathlib/vectorws.h"
 #include "mathlib/camera.h"
 #include "mathlib/transform.h"
 #include "vphysics2/physicscast.h"
@@ -25,6 +26,8 @@
 #include "vphysics2/iphysicsbody.h"
 #include "vphysics2/iphysicssoftbody.h"
 #include "vphysics2/iphysicsjoint.h"
+#include "vphysics/constraints.h"
+#include "rubikon/intersection.h"
 #include <float.h>
 #include <functional>
 
@@ -64,6 +67,7 @@ class IPhysAggregateInstance;
 class IPhysicsRagdoll;
 class IPhysicsRagdollControl;
 class IVPhysics2World;
+class ISceneWorld;
 class CBufferString;
 class CCommand;
 struct Ray_t;
@@ -257,11 +261,8 @@ public:
 	// AMNOTE: Updates broadphase overlaps and performs collision detection without running the complete solver step.
 	virtual void Collide( float deltaTime ) = 0;
 
-private:
-	// AMNOTE: Processes broadphase objects against the configured world bounds; the complete signature remains unresolved.
-	virtual void unk101() = 0;
-
-public:
+	// AMNOTE: Translates out-of-bounds bodies inside the configured world bounds and clears nonstatic bodies' linear and angular velocities.
+	virtual void ClampBodiesToWorldBounds() = 0;
 	// AMNOTE: Copies three floats into the world's gravity vector.
 	virtual void SetGravity( const Vector &gravityVector ) = 0;
 	// AMNOTE: Returns the world's gravity vector; the returned reference is owned by the world.
@@ -271,9 +272,9 @@ public:
 	// AMNOTE: Returns the air density used by the bodies' aerodynamic drag calculation.
 	virtual float GetAirDensity() const = 0;
 	// AMNOTE: Sets an unidentified integer world control, initially one.
-	virtual void unk201( int nValue ) = 0;
+	virtual void unk101( int nValue ) = 0;
 	// AMNOTE: Reads the unidentified integer world control set by the preceding method.
-	virtual int unk202() const = 0;
+	virtual int unk102() const = 0;
 	// AMNOTE: Sets the world's position-solver iteration count without clamping; initially two. Each island uses the greater of this count and its own requested count.
 	virtual void SetPositionSolverIterationCount( int nIterations ) = 0;
 	// AMNOTE: Returns the world's position-solver iteration count.
@@ -291,9 +292,9 @@ public:
 	// AMNOTE: Scales cached contact and joint solver values.
 	virtual void ScaleCachedConstraintData( float flScale ) = 0;
 	// AMNOTE: Reads an unidentified broadphase tracking-mode flag.
-	virtual bool unk301() const = 0;
+	virtual bool unk201() const = 0;
 	// AMNOTE: Changes that broadphase tracking mode and rebuilds its tracked-proxy list.
-	virtual void unk302( bool bEnable ) = 0;
+	virtual void unk202( bool bEnable ) = 0;
 	// AMNOTE: Returns whether the configured thread limit permits more than one worker.
 	virtual bool IsMultithreadingEnabled() const = 0;
 	// AMNOTE: Enables or disables parallel work while retaining the magnitude of the configured thread limit.
@@ -313,21 +314,21 @@ public:
 	// AMNOTE: Returns the counter incremented by both simulation-time advance and full simulation.
 	virtual int GetSimulationTickCount() const = 0;
 	// AMNOTE: Sets an unidentified integer world control, initially four.
-	virtual void unk401( int nValue ) = 0;
+	virtual void unk301( int nValue ) = 0;
 	// AMNOTE: Reads the unidentified integer world control set by the preceding method.
-	virtual int unk402() const = 0;
+	virtual int unk302() const = 0;
 	// AMNOTE: Sets an unidentified integer world control, initially one.
-	virtual void unk403( int nValue ) = 0;
+	virtual void unk303( int nValue ) = 0;
 	// AMNOTE: Reads the unidentified integer world control set by the preceding method.
-	virtual int unk404() const = 0;
+	virtual int unk304() const = 0;
 	// AMNOTE: Sets an unidentified integer world control, initially one.
-	virtual void unk405( int nValue ) = 0;
+	virtual void unk305( int nValue ) = 0;
 	// AMNOTE: Reads the unidentified integer world control set by the preceding method.
-	virtual int unk406() const = 0;
+	virtual int unk306() const = 0;
 
 private:
 	// AMNOTE: Stores an unidentified core-world pointer; its interface type is unresolved.
-	virtual void unk407() = 0;
+	virtual void unk307() = 0;
 
 public:
 	// AMNOTE: Changing this flag immediately sleeps eligible nonstatic bodies when enabled, or wakes them when disabled.
@@ -378,16 +379,16 @@ public:
 	virtual IPhysicsSoftbody *GetSoftbody( int nIndex ) = 0;
 	// AMNOTE: Returns the indexed softbody with const access.
 	virtual const IPhysicsSoftbody *GetSoftbody( int nIndex ) const = 0;
-	// AMNOTE: Reads an unidentified softbody tuning value, initially 100.
-	virtual float unk501() const = 0;
-	// AMNOTE: Sets that tuning value for subsequently created softbodies.
-	virtual void unk502( float flValue ) = 0;
+	// AMNOTE: Returns the ground-trace start offset used when constructing new softbodies; initially 100.
+	virtual float GetSoftbodyGroundTraceRaise() const = 0;
+	// AMNOTE: Existing softbodies retain their own ground-trace start offset.
+	virtual void SetSoftbodyGroundTraceRaise( float flOffset ) = 0;
 
 private:
 	// AMNOTE: Stores an unidentified pointer associated with softbody processing.
-	virtual void unk503() = 0;
+	virtual void unk401() = 0;
 	// AMNOTE: Returns the unidentified pointer associated with softbody processing.
-	virtual void unk504() = 0;
+	virtual void unk402() = 0;
 
 public:
 	// AMNOTE: Counts the joint vector populated by the joint creation methods.
@@ -416,26 +417,32 @@ public:
 
 private:
 	// AMNOTE: Creates joints from aggregate constraint data; the resource descriptors and output parameters remain unresolved.
-	virtual void unk601() = 0;
+	virtual void unk501() = 0;
 
 public:
 	// AMNOTE: Destruction is deferred; do not use pJoint after successful removal.
 	// AMNOTE: Returns false for a missing/unregistered joint, otherwise removes it and queues deferred deletion.
 	virtual bool DestroyJoint( IPhysicsJoint *pJoint ) = 0;
 
+public:
+	// AMNOTE: Created joints are owned by the world; null endpoints use world-space constraint positions.
+	virtual IPhysicsJoint *CreateBallsocketConstraint( IPhysicsBody *pBodyA, IPhysicsBody *pBodyB, const constraint_ballsocketparams_t &params ) = 0;
+
+private:
+	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
+	virtual void unk601() = 0;
+	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
+	virtual void unk602() = 0;
+
+public:
+	// AMNOTE: Created joints are owned by the world; null endpoints use world-space constraint positions.
+	virtual IPhysicsJoint *CreateDistanceConstraint( IPhysicsBody *pBodyA, IPhysicsBody *pBodyB, const constraint_lengthparams_t &params ) = 0;
+
 private:
 	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
 	virtual void unk701() = 0;
 	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
 	virtual void unk702() = 0;
-	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
-	virtual void unk703() = 0;
-	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
-	virtual void unk704() = 0;
-	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
-	virtual void unk705() = 0;
-	// AMNOTE: Creates a joint between body adapters; its constraint parameters remain unresolved.
-	virtual void unk706() = 0;
 
 public:
 	// AMNOTE: Appends other bodies in the body's connection groups; duplicates are retained and pBody must be nonnull.
@@ -619,7 +626,7 @@ public:
 
 private:
 	// AMNOTE: Collects geometry hit descriptors; the complete result type and trailing options remain unresolved.
-	virtual void unk1101() = 0;
+	virtual void ToolCastRayMultipleUnfiltered() = 0;
 
 public:
 	// AMNOTE: Appends entry/exit boundaries and sorts the unmerged result by fraction; clear intervals before a new query. Nonnegative flAdditionalDistance narrows subsequent broadphase traversal to that distance beyond the nearest entry encountered; negative values search the full displacement. bMerge combines overlapping intervals.
@@ -658,9 +665,9 @@ public:
 
 public:
 	// AMNOTE: Appends shapes overlapping the sphere. Use zero for bounds testing or one for exact overlap testing.
-	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Vector &vCenter, float flRadius, const RnQueryAttr_t &query, int nOverlapTest ) const = 0;
+	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Vector &vCenter, float flRadius, const RnQueryAttr_t &query, OverlapTest_t nOverlapTest ) const = 0;
 	// AMNOTE: Appends shapes overlapping bounds. Use zero for bounds testing or one for exact overlap testing.
-	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const AABB_t &bounds, const RnQueryAttr_t &query, int nOverlapTest ) const = 0;
+	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const AABB_t &bounds, const RnQueryAttr_t &query, OverlapTest_t nOverlapTest ) const = 0;
 	// AMNOTE: Replaces shapes with the shapes hit by a box sweep; the same shape may appear more than once.
 	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Vector &vStart, const Vector &vDisplacement, const Vector &vHalfExtents, const RnQueryAttr_t &query ) const = 0;
 	// AMNOTE: Replaces shapes with the shapes hit by a ray; the same shape may appear more than once.
@@ -668,7 +675,7 @@ public:
 	// AMNOTE: Replaces shapes with the shapes hit by a sphere sweep; a negligible radius uses the ray query.
 	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Vector &vStart, const Vector &vDisplacement, float flRadius, const RnQueryAttr_t &query ) const = 0;
 	// AMNOTE: Appends overlapping shapes at vOrigin. Use zero for bounds testing or one for exact overlap testing.
-	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Ray_t &shape, const Vector &vOrigin, const RnQueryAttr_t &query, int nOverlapTest ) const = 0;
+	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Ray_t &shape, const Vector &vOrigin, const RnQueryAttr_t &query, OverlapTest_t nOverlapTest ) const = 0;
 	// AMNOTE: Replaces shapes with the shapes hit by the Ray_t sweep; the same shape may appear more than once.
 	virtual void Query( CUtlVector<IPhysicsShape *> &shapes, const Ray_t &shape, const Vector &vStart, const Vector &vDisplacement, const RnQueryAttr_t &query ) const = 0;
 
@@ -696,7 +703,7 @@ private:
 	// AMNOTE: Returns the borrowed height-grid descriptor; its complete return type remains unresolved.
 	virtual void GetGroundHeightGrid() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1201() = 0;
+	virtual void unk1101() = 0;
 
 public:
 	// AMNOTE: Returns the stored world creation flags, including any bits added by the engine.
@@ -710,33 +717,33 @@ private:
 	// AMNOTE: Serializes a typed physics object; its serialization parameter structure remains unresolved.
 	virtual void SavePhysicsObject() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1301() = 0;
+	virtual void unk1201() = 0;
 	// AMNOTE: Restores or reuses a typed physics object; its restoration parameter structure remains unresolved.
 	virtual void RestorePhysicsObject() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1401() = 0;
+	virtual void unk1301() = 0;
 	// AMNOTE: Returns zero in this build; the complete signature remains unresolved.
-	virtual void unk1402() = 0;
+	virtual void unk1302() = 0;
 	// AMNOTE: Does no work in this build; the original parameters remain unresolved.
-	virtual void unk1403() = 0;
+	virtual void unk1303() = 0;
 	// AMNOTE: Does no work in this build; the original parameters remain unresolved.
-	virtual void unk1404() = 0;
+	virtual void unk1304() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1405() = 0;
+	virtual void unk1305() = 0;
 	// AMNOTE: Returns zero in this build; the complete signature remains unresolved.
-	virtual void unk1406() = 0;
+	virtual void unk1306() = 0;
 	// AMNOTE: Returns zero in this build; the complete signature remains unresolved.
-	virtual void unk1407() = 0;
+	virtual void unk1307() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1408() = 0;
+	virtual void unk1308() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1409() = 0;
+	virtual void unk1309() = 0;
 	// AMNOTE: Returns a zero-initialized result; its complete result type remains unresolved.
-	virtual void unk14010() = 0;
+	virtual void unk13010() = 0;
 	// AMNOTE: Returns a zero-initialized result; its complete result type remains unresolved.
-	virtual void unk14011() = 0;
+	virtual void unk13011() = 0;
 	// AMNOTE: Returns a zero-initialized result; its complete result type remains unresolved.
-	virtual void unk14012() = 0;
+	virtual void unk13012() = 0;
 
 public:
 	// AMNOTE: Returns the world's engine-owned reflection context; keep it only while this world is alive.
@@ -744,23 +751,27 @@ public:
 
 private:
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1501() = 0;
+	virtual void unk1401() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1502() = 0;
+	virtual void unk1402() = 0;
 	// AMNOTE: Does no work in this build; the original parameters remain unresolved.
-	virtual void unk1503() = 0;
+	virtual void unk1403() = 0;
 	// AMNOTE: Does no work in this build; the original parameters remain unresolved.
-	virtual void unk1504() = 0;
-	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1505() = 0;
-	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1506() = 0;
+	virtual void unk1404() = 0;
+
+public:
+	// AMNOTE: Creates or shows eligible body-shape debug scene objects when enabled; hides existing objects when disabled. Applies the current debug draw filter.
+	virtual void UpdateBodySceneObjects( bool bEnable ) = 0;
+	// AMNOTE: Releases all body-shape and joint debug scene objects; their physics objects remain alive.
+	virtual void DestroySceneObjects() = 0;
+
+private:
 	// AMNOTE: Draws the world's debug overlays; dependent interface types and the complete signature remain unresolved.
 	virtual void DebugDraw() = 0;
 	// AMNOTE: Updates the world's scene objects; dependent interface types and the complete signature remain unresolved.
 	virtual void UpdateSceneObjects() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1601() = 0;
+	virtual void unk1501() = 0;
 
 public:
 	// AMNOTE: Returns the stored debug draw flags.
@@ -768,13 +779,13 @@ public:
 	// AMNOTE: Stores debug draw flags and requests a scene-object update. Drawing may use command override options.
 	virtual void SetDebugDrawFlags( uint64 flags ) = 0;
 
-private:
-	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1701() = 0;
-	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1702() = 0;
-	// AMNOTE: Copies a CFrustum into the core world for debug drawing; the ignored leading parameter remains unresolved.
-	virtual void SetDebugDrawFrustum() = 0;
+public:
+	// AMNOTE: Borrows the scene world and destroys existing physics debug scene objects when it changes. Keep the scene alive until it is replaced or cleared.
+	virtual void SetDebugScene( ISceneWorld *pScene ) = 0;
+	// AMNOTE: Returns the borrowed debug scene world, or null when none is set.
+	virtual ISceneWorld *GetDebugScene() const = 0;
+	// AMNOTE: Copies the frustum for physics debug drawing. nHint is unused in this build.
+	virtual void SetVisualDebugCameraHint( int nHint, const CFrustum &frustum ) = 0;
 
 public:
 	// AMNOTE: Borrows the world's stored debug frustum.
@@ -782,9 +793,9 @@ public:
 
 private:
 	// AMNOTE: Does no work in this build; the original parameters remain unresolved.
-	virtual void unk1801() = 0;
+	virtual void unk1601() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1802() = 0;
+	virtual void unk1602() = 0;
 	// AMNOTE: Replaces the world's debug draw filter and notifies its world event listener; the complete filter type remains unresolved.
 	virtual void SetDebugDrawFilter() = 0;
 
@@ -828,9 +839,9 @@ public:
 
 private:
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1901() = 0;
+	virtual void unk1701() = 0;
 	// AMNOTE: Unresolved signature: inaccessible placeholder, not a callable declaration.
-	virtual void unk1902() = 0;
+	virtual void unk1702() = 0;
 
 public:
 	// AMNOTE: Appends an HTML collision-filter report. Both shapes must be nonnull and attached to bodies.
