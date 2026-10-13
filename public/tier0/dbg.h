@@ -94,6 +94,7 @@ PLATFORM_INTERFACE bool SetupWin32ConsoleIO();
 		if (!(_exp)) 													\
 		{ 																\
 			LoggingResponse_t ret = Log_Assert( "%s (%d) : %s\n", __TFILE__, __LINE__, _msg );	\
+			(void)ret;													\
 			_executeExp; 												\
 		}																\
 	} while (0)
