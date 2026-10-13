@@ -9,8 +9,12 @@
 #include "tier0/utlleanvector.h"
 #include "appframework/iappsystem.h"
 #include "resourcesystem/iresourcesystem.h"
+#include "resourcesystem/resourcehandle.h"
 #include "vphysics2/iphysicsbody.h"
 #include "vphysics2/physicscast.h"
+#include "vphysics2/intersection_controller_interface.h"
+#include "rubikon/param_types.h"
+#include "mathlib/camera.h"
 
 #if ( defined( _MSVC_LANG ) && _MSVC_LANG > 201703L ) || __cplusplus > 201703L
 #include <span>
@@ -27,6 +31,8 @@ class IResourceTypeManager;
 class IVConComm;
 class CCommand;
 class CFeModel;
+class CGJKProxy;
+struct InfoForResourceTypeIMaterial2;
 struct VPhysXWorldStepResults;
 class IFnPhysicsContact;
 class IFnPhysicsAnyJoint;
@@ -233,9 +239,10 @@ private:
 	virtual void unk004() = 0;
 	virtual void unk005() = 0;
 	virtual void unk006() = 0;
-	virtual void unk007() = 0;
 
 public:
+	// AMNOTE: Applies per-axis mesh scale. Use a fresh result; the material field is unchanged.
+	virtual bool CastLineAgainstMesh( VPhys2ShapeCastResult_t &result, const RnMesh_t &mesh, const Vector &vScale, const Vector &vStart, const Vector &vDisplacement ) = 0;
 	// AMNOTE: The scale multiplies the hull's plane offsets. Use a fresh result; the material field is unchanged.
 	virtual bool CastLineAgainstHull( VPhys2ShapeCastResult_t &result, const RnHull_t &hull, float flScale, const Vector &vStart, const Vector &vDisplacement ) = 0;
 	// AMNOTE: The cast geometry is translated by vStart; the target geometry uses targetTransform. Use a fresh result because geometry-only casts leave body, shape and surface fields unchanged.
@@ -243,9 +250,15 @@ public:
 
 private:
 	virtual void unk101() = 0;
-	virtual void unk102() = 0;
-	virtual void unk103() = 0;
-	virtual void unk104() = 0;
+
+public:
+	// AMNOTE: Both shapes must be nonnull convex shapes. The transform's position and orientation are applied, but its uniform-scale component is ignored.
+	virtual RnDistanceQueryResult_t ClosestPoints( const CTransform &transform1, IPhysicsShape *pShape1, const CTransform &transform2, IPhysicsShape *pShape2 ) = 0;
+
+private:
+	// AMNOTE: Reserves the geometry overloads while their complete support-descriptor contracts remain unresolved.
+	virtual RnDistanceQueryResult_t ClosestPoints( const CTransform &transform1, const Ray_t &geometry1, const CTransform &transform2, const Ray_t &geometry2, VPhys2ConvexSimplexCache_t *pCache ) = 0;
+	virtual RnDistanceQueryResult_t ClosestPoints( const matrix3x4_t &transform1, const CGJKProxy &geometry1, const matrix3x4_t &transform2, const CGJKProxy &geometry2, VPhys2ConvexSimplexCache_t *pCache, int nMaxIterations ) = 0;
 
 public:
 	// AMNOTE: Returns the distance between convex point clouds; finite distances at or below 1/8 unit become zero. Both clouds must be nonempty.
@@ -364,8 +377,10 @@ public:
 	virtual VPhys2MassProperties_t ComputeMassProperties( const RnCapsule_t &capsule, const VPhys2ShapeMaterialBinding &material ) const = 0;
 	virtual VPhys2MassProperties_t ComputeMassProperties( const RnHull_t &hull, float flScale, const VPhys2ShapeMaterialBinding &material ) const = 0;
 
+	// AMNOTE: Selectors one and three try the optional material-name hash before using their default material.
+	virtual CWeakHandle<InfoForResourceTypeIMaterial2> GetDebugMaterial( int nSelector, uint32 nMaterialNameHash = 0 ) = 0;
+
 private:
-	virtual void unk501() = 0;
 	// AMNOTE: Every ConstructFnPhysics method requires caller-owned storage of at least 16 bytes, aligned to 8 bytes. Keep that storage alive while using the returned helper; do not delete the helper.
 	virtual IFnPhysicsContact *ConstructFnPhysicsContact( void *pMemory, int nMemorySize ) = 0;
 	virtual IFnPhysicsAnyJoint *ConstructFnPhysicsAnyJoint( void *pMemory, int nMemorySize ) = 0;
@@ -388,7 +403,7 @@ private:
 	virtual IFnPhysicsBody *ConstructFnPhysicsBody( void *pMemory, int nMemorySize ) = 0;
 	virtual IFnPhysicsSoftbody *ConstructFnPhysicsSoftbody( void *pMemory, int nMemorySize ) = 0;
 	virtual IFnPhysicsWorld *ConstructFnPhysicsWorld( void *pMemory, int nMemorySize ) = 0;
-	virtual void unk601() = 0;
+	virtual void unk501() = 0;
 
 public:
 	virtual void SetVConComm( IVConComm *pVConComm ) = 0;
@@ -398,26 +413,29 @@ public:
 	virtual bool IsStreamingToPhysicsDebugger() = 0;
 
 private:
-	virtual void unk701() = 0;
-	virtual void unk702() = 0;
-	virtual void unk703() = 0;
-	virtual void unk704() = 0;
-	virtual void unk705() = 0;
+	virtual void unk601() = 0;
+	virtual void unk602() = 0;
+	virtual void unk603() = 0;
+	virtual void unk604() = 0;
+	virtual void unk605() = 0;
 
 public:
 	virtual void PrintInfo( const CCommand &args ) = 0;
+
+private:
+	virtual void unk701() = 0;
+	virtual void unk702() = 0;
+
+public:
+	virtual void DestroyDebugSceneObject( void *pSceneObject ) = 0;
 
 private:
 	virtual void unk801() = 0;
 	virtual void unk802() = 0;
 
 public:
-	virtual void DestroyDebugSceneObject( void *pSceneObject ) = 0;
-
-private:
-	virtual void unk901() = 0;
-	virtual void unk902() = 0;
-	virtual void unk903() = 0;
+	// AMNOTE: Copies the frustum into every managed world. nHint is unused in this build.
+	virtual void SetVisualDebugCameraHint( int nHint, const CFrustum &frustum ) = 0;
 
 public:
 	virtual const char *GetMassDescription( float flMass ) = 0;
