@@ -14,6 +14,7 @@
 #include "mathlib/ray.h"
 #include "gametrace.h"
 #include "color.h"
+#include "rubikon/param_types.h"
 
 class IPhysicsBody;
 class ISceneViewDebugOverlays;
@@ -132,12 +133,8 @@ struct VPhys2ShapeCastResult_t
 	void Reset() { *this = VPhys2ShapeCastResult_t(); }
 };
 
-struct VPhys2ShapeMassProperties_t
-{
-	// AMNOTE: Inertia about the local mass center; the fourth column stores that center.
-	matrix3x4_t m_InertiaTensor;
-	float m_flMass;
-};
+// AMNOTE: Deprecated, use RnInertiaProperties_t.
+using VPhys2ShapeMassProperties_t = RnInertiaProperties_t;
 
 struct VPhys2SupportPoint_t
 {
@@ -251,7 +248,7 @@ public:
 	// AMNOTE: Returns the closest point in shape-local coordinates. Sphere and capsule geometry retain interior points.
 	virtual Vector GetClosestPoint( const Vector &vPoint ) const = 0;
 	// AMNOTE: Returns geometry mass properties, including shape scale, before the owning body's mass and inertia overrides.
-	virtual VPhys2ShapeMassProperties_t GetMassProperties() const = 0;
+	virtual RnInertiaProperties_t GetInertiaProperties() const = 0;
 	// AMNOTE: Returns cached world-space broadphase bounds. The shape must belong to a body and be registered in its world.
 	virtual AABB_t GetWorldBounds() const = 0;
 	// AMNOTE: Returns local geometry bounds.
@@ -365,18 +362,35 @@ private:
 
 inline VPhys2SupportPoint_t CPhysicsShape::GetSupportPoint( const CTransform &shapeToQuery, const Vector &unitDirection ) const
 {
-	const fltx4 q = LoadAlignedSIMD( shapeToQuery.m_orientation.Base() );
-	const fltx4 qDoubled = AddSIMD( q, q );
-	const fltx4 qSquaredDoubled = MulSIMD( q, qDoubled );
-	const fltx4 diagonal = SubSIMD( SubSIMD( ReplicateX4( 1.0f ), _mm_shuffle_ps( qSquaredDoubled, qSquaredDoubled, 193 ) ), _mm_shuffle_ps( qSquaredDoubled, qSquaredDoubled, 218 ) );
-	const fltx4 products = MulSIMD( _mm_shuffle_ps( qDoubled, qDoubled, 233 ), _mm_shuffle_ps( q, q, 196 ) );
-	const fltx4 wProducts = MulSIMD( _mm_shuffle_ps( qDoubled, qDoubled, 210 ), SplatWSIMD( q ) );
-	const fltx4 positive = AddSIMD( products, wProducts );
-	const fltx4 negative = SubSIMD( products, wProducts );
+	// Separate scalar SIMD operations preserve the matrix and query direction on fused multiply-add targets.
+	const Quaternion &q = shapeToQuery.m_orientation;
+	const fltx4 qX = _mm_set_ss( q.x );
+	const fltx4 qY = _mm_set_ss( q.y );
+	const fltx4 qZ = _mm_set_ss( q.z );
+	const fltx4 qW = _mm_set_ss( q.w );
+	const fltx4 qX2 = _mm_add_ss( qX, qX );
+	const fltx4 qY2 = _mm_add_ss( qY, qY );
+	const fltx4 qZ2 = _mm_add_ss( qZ, qZ );
+	const fltx4 qXX2 = _mm_mul_ss( qX, qX2 );
+	const fltx4 qYY2 = _mm_mul_ss( qY, qY2 );
+	const fltx4 qZZ2 = _mm_mul_ss( qZ, qZ2 );
+	const fltx4 qXY2 = _mm_mul_ss( qY2, qX );
+	const fltx4 qYZ2 = _mm_mul_ss( qZ2, qY );
+	const fltx4 qXZ2 = _mm_mul_ss( qZ2, qX );
+	const fltx4 qZW2 = _mm_mul_ss( qZ2, qW );
+	const fltx4 qXW2 = _mm_mul_ss( qX2, qW );
+	const fltx4 qYW2 = _mm_mul_ss( qY2, qW );
+	const fltx4 one = _mm_set_ss( 1.0f );
 	matrix3x4a_t matrix;
-	StoreAlignedSIMD( matrix[0], _mm_shuffle_ps( _mm_unpacklo_ps( diagonal, negative ), positive, 36 ) );
-	StoreAlignedSIMD( matrix[1], _mm_shuffle_ps( _mm_unpacklo_ps( positive, diagonal ), negative, 28 ) );
-	StoreAlignedSIMD( matrix[2], _mm_shuffle_ps( _mm_shuffle_ps( negative, positive, 90 ), diagonal, 40 ) );
+	matrix[0][0] = SubFloat( _mm_sub_ss( _mm_sub_ss( one, qYY2 ), qZZ2 ), 0 );
+	matrix[0][1] = SubFloat( _mm_sub_ss( qXY2, qZW2 ), 0 );
+	matrix[0][2] = SubFloat( _mm_add_ss( qXZ2, qYW2 ), 0 );
+	matrix[1][0] = SubFloat( _mm_add_ss( qXY2, qZW2 ), 0 );
+	matrix[1][1] = SubFloat( _mm_sub_ss( _mm_sub_ss( one, qXX2 ), qZZ2 ), 0 );
+	matrix[1][2] = SubFloat( _mm_sub_ss( qYZ2, qXW2 ), 0 );
+	matrix[2][0] = SubFloat( _mm_sub_ss( qXZ2, qYW2 ), 0 );
+	matrix[2][1] = SubFloat( _mm_add_ss( qYZ2, qXW2 ), 0 );
+	matrix[2][2] = SubFloat( _mm_sub_ss( _mm_sub_ss( one, qXX2 ), qYY2 ), 0 );
 	matrix[0][3] = shapeToQuery.m_vPosition.x;
 	matrix[1][3] = shapeToQuery.m_vPosition.y;
 	matrix[2][3] = shapeToQuery.m_vPosition.z;
@@ -390,9 +404,16 @@ inline VPhys2SupportPoint_t CPhysicsShape::GetSupportPoint( const CTransform &sh
 	}
 
 	Vector localDirection;
-	localDirection.x = ( unitDirection.x * matrix[0][0] + unitDirection.y * matrix[1][0] ) + unitDirection.z * matrix[2][0];
-	localDirection.y = ( unitDirection.x * matrix[0][1] + unitDirection.y * matrix[1][1] ) + unitDirection.z * matrix[2][1];
-	localDirection.z = ( unitDirection.x * matrix[0][2] + unitDirection.y * matrix[1][2] ) + unitDirection.z * matrix[2][2];
+	const fltx4 directionX = _mm_set_ss( unitDirection.x );
+	const fltx4 directionY = _mm_set_ss( unitDirection.y );
+	const fltx4 directionZ = _mm_set_ss( unitDirection.z );
+	for ( int column = 0; column < 3; ++column )
+	{
+		const fltx4 firstProduct = _mm_mul_ss( directionX, _mm_set_ss( matrix[0][column] ) );
+		const fltx4 secondProduct = _mm_mul_ss( directionY, _mm_set_ss( matrix[1][column] ) );
+		const fltx4 thirdProduct = _mm_mul_ss( directionZ, _mm_set_ss( matrix[2][column] ) );
+		localDirection[column] = SubFloat( _mm_add_ss( _mm_add_ss( firstProduct, secondProduct ), thirdProduct ), 0 );
+	}
 	VPhys2SupportPoint_t result = GetSupportPoint( localDirection );
 	const fltx4 point = _mm_set_ps( 1.0f, result.m_vPoint.z, result.m_vPoint.y, result.m_vPoint.x );
 	const fltx4 firstRow = MulSIMD( LoadAlignedSIMD( matrix[0] ), point );
@@ -407,7 +428,10 @@ inline VPhys2SupportPoint_t CPhysicsShape::GetSupportPoint( const CTransform &sh
 	const fltx4 transformed = AddSIMD( _mm_shuffle_ps( firstPairs, thirdPairs, 221 ), _mm_shuffle_ps( firstPairs, thirdPairs, 200 ) );
 #endif
 	StoreUnaligned3SIMD( result.m_vPoint.Base(), transformed );
-	result.m_flProjection = ( ( matrix[2][3] * unitDirection.z + matrix[1][3] * unitDirection.y ) + matrix[0][3] * unitDirection.x ) + result.m_flProjection;
+	const fltx4 projectionZ = _mm_mul_ss( _mm_set_ss( matrix[2][3] ), directionZ );
+	const fltx4 projectionY = _mm_mul_ss( _mm_set_ss( matrix[1][3] ), directionY );
+	const fltx4 projectionX = _mm_mul_ss( _mm_set_ss( matrix[0][3] ), directionX );
+	result.m_flProjection = SubFloat( _mm_add_ss( _mm_add_ss( _mm_add_ss( projectionZ, projectionY ), projectionX ), _mm_set_ss( result.m_flProjection ) ), 0 );
 	return result;
 }
 
@@ -430,24 +454,39 @@ inline bool CPhysicsShape::Overlap( const CTransform &shapeToQuery, const Ray_t 
 inline void CPhysicsShape::ComputeOverlapMatrix( const CTransform &transform, matrix3x4_t &matrix )
 {
 	const Quaternion &q = transform.m_orientation;
-	const float xx = q.x * q.x;
-	const float yy = q.y * q.y;
-	const float zz = q.z * q.z;
-	const float xy = q.x * q.y;
-	const float xz = q.x * q.z;
-	const float yz = q.y * q.z;
-	const float xw = q.x * q.w;
-	const float yw = q.y * q.w;
-	const float zw = q.z * q.w;
-	matrix[0][0] = 1.0f - ( ( yy + zz ) + ( yy + zz ) );
-	matrix[1][0] = ( xy + zw ) + ( xy + zw );
-	matrix[2][0] = ( xz - yw ) + ( xz - yw );
-	matrix[0][1] = ( xy - zw ) + ( xy - zw );
-	matrix[1][1] = 1.0f - ( ( xx + zz ) + ( xx + zz ) );
-	matrix[2][1] = ( xw + yz ) + ( xw + yz );
-	matrix[0][2] = ( xz + yw ) + ( xz + yw );
-	matrix[1][2] = ( yz - xw ) + ( yz - xw );
-	matrix[2][2] = 1.0f - ( ( xx + yy ) + ( xx + yy ) );
+	const fltx4 x = _mm_set_ss( q.x );
+	const fltx4 y = _mm_set_ss( q.y );
+	const fltx4 z = _mm_set_ss( q.z );
+	const fltx4 w = _mm_set_ss( q.w );
+	const fltx4 xx = _mm_mul_ss( x, x );
+	const fltx4 yy = _mm_mul_ss( y, y );
+	const fltx4 zz = _mm_mul_ss( z, z );
+	const fltx4 xy = _mm_mul_ss( x, y );
+	const fltx4 xz = _mm_mul_ss( x, z );
+	const fltx4 yz = _mm_mul_ss( y, z );
+	const fltx4 xw = _mm_mul_ss( x, w );
+	const fltx4 yw = _mm_mul_ss( y, w );
+	const fltx4 zw = _mm_mul_ss( z, w );
+	// Overlap sums products before doubling, unlike the transformed support query.
+	const fltx4 yyzz = _mm_add_ss( yy, zz );
+	const fltx4 xxzz = _mm_add_ss( xx, zz );
+	const fltx4 xxyy = _mm_add_ss( xx, yy );
+	const fltx4 xyPlusZW = _mm_add_ss( xy, zw );
+	const fltx4 xyMinusZW = _mm_sub_ss( xy, zw );
+	const fltx4 xzPlusYW = _mm_add_ss( xz, yw );
+	const fltx4 xzMinusYW = _mm_sub_ss( xz, yw );
+	const fltx4 yzPlusXW = _mm_add_ss( xw, yz );
+	const fltx4 yzMinusXW = _mm_sub_ss( yz, xw );
+	const fltx4 one = _mm_set_ss( 1.0f );
+	matrix[0][0] = SubFloat( _mm_sub_ss( one, _mm_add_ss( yyzz, yyzz ) ), 0 );
+	matrix[1][0] = SubFloat( _mm_add_ss( xyPlusZW, xyPlusZW ), 0 );
+	matrix[2][0] = SubFloat( _mm_add_ss( xzMinusYW, xzMinusYW ), 0 );
+	matrix[0][1] = SubFloat( _mm_add_ss( xyMinusZW, xyMinusZW ), 0 );
+	matrix[1][1] = SubFloat( _mm_sub_ss( one, _mm_add_ss( xxzz, xxzz ) ), 0 );
+	matrix[2][1] = SubFloat( _mm_add_ss( yzPlusXW, yzPlusXW ), 0 );
+	matrix[0][2] = SubFloat( _mm_add_ss( xzPlusYW, xzPlusYW ), 0 );
+	matrix[1][2] = SubFloat( _mm_add_ss( yzMinusXW, yzMinusXW ), 0 );
+	matrix[2][2] = SubFloat( _mm_sub_ss( one, _mm_add_ss( xxyy, xxyy ) ), 0 );
 	matrix[0][3] = transform.m_vPosition.x;
 	matrix[1][3] = transform.m_vPosition.y;
 	matrix[2][3] = transform.m_vPosition.z;
