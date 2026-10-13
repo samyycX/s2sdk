@@ -260,7 +260,7 @@ inline void CUtlLeanVectorBase<T, I, A>::Purge()
 	m_nAllocated = 0;
 }
 
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 class CUtlLeanVectorFixedGrowableBase
 {
 	typedef A CAllocator;
@@ -305,7 +305,7 @@ protected:
 	} ALIGN8_POST;
 
 	// AMNOTE: Ensures all the added padding is also utilized for static storage if possible
-	static constexpr size_t FIXED_CAPACITY = ( sizeof( FixedLayout_t ) - offsetof( FixedLayout_t, m_Elements ) ) / sizeof( T );
+	static constexpr size_t FIXED_CAPACITY = ( sizeof( FixedLayout_t ) - ALIGN_VALUE( 2 * sizeof( I ), alignof( T ) ) ) / sizeof( T );
 
 	union
 	{
@@ -334,20 +334,20 @@ protected:
 //-----------------------------------------------------------------------------
 // constructor, destructor
 //-----------------------------------------------------------------------------
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 inline CUtlLeanVectorFixedGrowableBase<T, N, I, A>::CUtlLeanVectorFixedGrowableBase( I growSize, I initSize ) :
 	m_nCount( 0 ), m_nAllocated( FIXED_CAPACITY )
 {
 	EnsureCapacity( initSize );
 }
 
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 inline CUtlLeanVectorFixedGrowableBase<T, N, I, A>::CUtlLeanVectorFixedGrowableBase( T *pMemory, I allocationCount, I numElements ) :
 	m_nAllocCount( numElements ), m_nAllocAllocated( allocationCount | EXTERNAL_BUFFER_MARKER ), m_pElements( pMemory )
 {
 }
 
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 inline CUtlLeanVectorFixedGrowableBase<T, N, I, A>::~CUtlLeanVectorFixedGrowableBase()
 {
 	Purge();
@@ -356,7 +356,7 @@ inline CUtlLeanVectorFixedGrowableBase<T, N, I, A>::~CUtlLeanVectorFixedGrowable
 //-----------------------------------------------------------------------------
 // Gets the base address (can change when adding elements!)
 //-----------------------------------------------------------------------------
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 inline T* CUtlLeanVectorFixedGrowableBase<T, N, I, A>::Base()
 {
 	if ( NumAllocated() )
@@ -370,7 +370,7 @@ inline T* CUtlLeanVectorFixedGrowableBase<T, N, I, A>::Base()
 	return nullptr;
 }
 
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 inline const T* CUtlLeanVectorFixedGrowableBase<T, N, I, A>::Base() const
 {
 	if ( NumAllocated() )
@@ -387,7 +387,7 @@ inline const T* CUtlLeanVectorFixedGrowableBase<T, N, I, A>::Base() const
 //-----------------------------------------------------------------------------
 // Makes sure we have enough memory allocated to store a requested # of elements
 //-----------------------------------------------------------------------------
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 void CUtlLeanVectorFixedGrowableBase<T, N, I, A>::EnsureCapacity( int num, bool force )
 {
 	if ( num <= NumAllocated() )
@@ -428,7 +428,7 @@ void CUtlLeanVectorFixedGrowableBase<T, N, I, A>::EnsureCapacity( int num, bool 
 //-----------------------------------------------------------------------------
 // Element removal
 //-----------------------------------------------------------------------------
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 void CUtlLeanVectorFixedGrowableBase<T, N, I, A>::RemoveAll()
 {
 	T* pElement = Base();
@@ -442,7 +442,7 @@ void CUtlLeanVectorFixedGrowableBase<T, N, I, A>::RemoveAll()
 //-----------------------------------------------------------------------------
 // Memory deallocation
 //-----------------------------------------------------------------------------
-template< class T, size_t N, class I, class A >
+template< class T, uint16 N, class I, class A >
 inline void CUtlLeanVectorFixedGrowableBase<T, N, I, A>::Purge()
 {
 	if(!IsExternallyAllocated())
@@ -920,7 +920,7 @@ public:
 	using BaseClass::BaseClass;
 };
 
-template < class T, size_t N = 3, class I = int, class A = CMemAllocAllocator >
+template < class T, uint16 N = 3, class I = int, class A = CMemAllocAllocator >
 class CUtlLeanVectorFixedGrowable : public CUtlLeanVectorImpl< CUtlLeanVectorFixedGrowableBase< T, N, I, A >, T, I >
 {
 	typedef CUtlLeanVectorImpl< CUtlLeanVectorFixedGrowableBase< T, N, I, A >, T, I > BaseClass;
