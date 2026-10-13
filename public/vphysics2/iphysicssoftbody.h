@@ -98,6 +98,27 @@ public:
 	const CUtlVectorConservative<int16> &GetMorphControllerMap() const { return m_MorphControllerMap; }
 	const CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> &GetControlMappings() const { return m_ControlMappings; }
 	const CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> &GetBoneSortedControlMappings() const { return m_BoneSortedControlMappings; }
+	// AMNOTE: Mappings used by optimized animation updates, with position-only entries first.
+	const CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> &GetFilteredControlMappings() const { return m_FilteredControlMappings; }
+	// AMNOTE: Length of the position-only prefix of GetFilteredControlMappings().
+	uint16 GetPositionOnlyControlMappingCount() const { return m_nPositionOnlyCtrlCount; }
+	// AMNOTE: Rows follow the model vertex maps; each row follows GetControlMappings().
+	const CUtlVectorConservative<float> &GetVertexMapWeights() const { return m_VertexMapWeights; }
+	// AMNOTE: Controls filled from the model's initial pose, in dependency order.
+	const CUtlVectorConservative<uint16> &GetInitPoseControls() const { return m_InitPoseControls; }
+	// AMNOTE: Child bones composed from their filtered parent and supplied local pose, in dependency order.
+	const CUtlVectorConservative<uint16> &GetParentPoseChildBones() const { return m_ParentPoseChildBones; }
+	// AMNOTE: Counts control offsets whose parent is produced by an earlier control offset.
+	uint16 GetDependentControlOffsetCount() const { return m_nDependentControlOffsetCount; }
+	// AMNOTE: These counts describe prefixes of GetControlMappings().
+	uint16 GetRotationLockedStaticControlMappingCount() const { return m_nRotationLockedStaticControlMappingCount; }
+	uint16 GetStaticControlMappingCount() const { return m_nStaticControlMappingCount; }
+	// AMNOTE: Selects bones mapped from filtered controls and their parent-pose descendants.
+	const CUtlVectorConservative<uint32> &GetFilteredBoneMask() const { return m_FilteredBoneMask; }
+	const CUtlVectorConservative<uint32> &GetRequiredBoneMask() const { return m_RequiredBoneMask; }
+	const CUtlVectorConservative<uint32> &GetRequiredAncestorBoneMask() const { return m_RequiredAncestorBoneMask; }
+	const CUtlVectorConservative<uint32> &GetMorphDrivenBoneMask() const { return m_MorphDrivenBoneMask; }
+	const CUtlVectorConservative<uint16> &GetMorphFlexControllers() const { return m_MorphFlexControllers; }
 	int GetParentBoneMappingCount() const { return m_pParentBoneMappings ? m_pParentBoneMappings->m_Size : 0; }
 	const VPhys2SoftbodyParentBoneMapping_t *GetParentBoneMappings() const { return m_pParentBoneMappings ? m_pParentBoneMappings->m_Elements : nullptr; }
 
@@ -111,24 +132,24 @@ private:
 	const VPhys2SoftbodyModelSkeleton *m_pSkeleton;
 	CUtlVectorConservative<int16> m_ControlBoneMap;
 	CUtlVectorConservative<int16> m_MorphControllerMap;
-	CUtlVectorConservative<uint16> m_unk001;
-	CUtlVectorConservative<uint16> m_unk002;
-	CUtlVectorConservative<uint32> m_unk003;
+	CUtlVectorConservative<uint16> m_InitPoseControls;
+	CUtlVectorConservative<uint16> m_ParentPoseChildBones;
+	CUtlVectorConservative<uint32> m_FilteredBoneMask;
 	CUtlVectorConservative<uint32> m_RequiredBoneMask;
 	CUtlVectorConservative<uint32> m_RequiredAncestorBoneMask;
 	CUtlVectorConservative<uint32> m_MorphDrivenBoneMask;
-	CUtlVectorConservative<uint16> m_unk101;
+	CUtlVectorConservative<uint16> m_unk001;
 	CUtlVectorConservative<uint16> m_MorphFlexControllers;
-	CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> m_unk201;
+	CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> m_unk101;
 	CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> m_BoneSortedControlMappings;
 	CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> m_ControlMappings;
-	CUtlVectorConservative<float> m_EffectWeights;
+	CUtlVectorConservative<float> m_VertexMapWeights;
 	CUtlVectorConservative<VPhys2SoftbodyBoneMapping_t> m_FilteredControlMappings;
 	CUtlVectorUltraConservative<VPhys2SoftbodyParentBoneMapping_t>::Data_t *m_pParentBoneMappings;
 	uint16 m_nBoneCount;
-	uint16 m_unk301;
-	uint16 m_unk302;
-	uint16 m_unk303;
+	uint16 m_nDependentControlOffsetCount;
+	uint16 m_nRotationLockedStaticControlMappingCount;
+	uint16 m_nStaticControlMappingCount;
 	uint16 m_nPositionOnlyCtrlCount;
 };
 
@@ -183,8 +204,8 @@ public:
 	virtual float GetModelScale() const = 0;
 
 private:
-	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk001() = 0;
+	// AMNOTE: Replaces the finite-element model; its complete replacement-context type remains unresolved. This reservation is not callable.
+	virtual void ReplaceFeModel() = 0;
 
 public:
 	// AMNOTE: Returns the borrowed finite-element model.
@@ -222,9 +243,9 @@ public:
 	virtual void SetSimulationTransform( const CTransform &tm, bool bTeleport ) = 0;
 
 private:
-	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk101() = 0;
-	virtual void unk102() = 0;
+	// AMNOTE: Animation-space selection; the complete enum domain remains unresolved. These reservations are not callable.
+	virtual void SetAnimSpace() = 0;
+	virtual void GetAnimSpace() = 0;
 
 public:
 	// AMNOTE: Sets the control pose from an array containing GetCtrlCount() transforms.
@@ -350,10 +371,10 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk201() = 0;
-	virtual void unk202() = 0;
-	virtual void unk203() = 0;
-	virtual void unk204() = 0;
+	virtual void unk001() = 0;
+	virtual void unk002() = 0;
+	virtual void unk003() = 0;
+	virtual void unk004() = 0;
 
 public:
 	// AMNOTE: Returns current node bounds, using cached dynamic-node bounds when available.
@@ -367,7 +388,7 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk301() = 0;
+	virtual void unk101() = 0;
 	// AMNOTE: Enables or disables ground collision for an indexed disable reason. The full parameter contract is unresolved; this reservation is not callable.
 	virtual void EnableGroundCollision() = 0;
 
@@ -377,8 +398,8 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk401() = 0;
-	virtual void unk402() = 0;
+	virtual void unk201() = 0;
+	virtual void unk202() = 0;
 
 public:
 	// AMNOTE: Sets the ground height and copies its horizontal origin from the simulation origin.
@@ -400,8 +421,8 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk501() = 0;
-	virtual void unk502() = 0;
+	virtual void unk301() = 0;
+	virtual void unk302() = 0;
 
 public:
 	// AMNOTE: Restores node positions from the cached pose, copies the current frame to the preceding frame and clears motion history.
@@ -409,10 +430,10 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk601() = 0;
-	virtual void unk602() = 0;
-	virtual void unk603() = 0;
-	virtual void unk604() = 0;
+	virtual void unk401() = 0;
+	virtual void unk402() = 0;
+	virtual void unk403() = 0;
+	virtual void unk404() = 0;
 
 public:
 	// AMNOTE: Returns the last simulation timestep.
@@ -428,7 +449,7 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk701() = 0;
+	virtual void unk501() = 0;
 
 public:
 	// AMNOTE: Stores a borrowed user pointer in one of two slots; indices outside the range are ignored.
@@ -448,7 +469,7 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk801() = 0;
+	virtual void unk601() = 0;
 
 public:
 	// AMNOTE: Controls whether world softbody simulation skips this body.
@@ -476,7 +497,7 @@ public:
 
 private:
 	// AMNOTE: Unresolved source contracts; these reservations are not callable.
-	virtual void unk901() = 0;
+	virtual void unk701() = 0;
 };
 
 // AMNOTE: Engine-owned adapter. The engine supplies destruction and all operations not defined here.
@@ -507,6 +528,8 @@ public:
 	void SetUserData( uint32 nIndex, void *pData ) override { if ( nIndex < 2 ) m_pUserData[nIndex] = pData; }
 	void *GetUserData( uint32 nIndex ) override { return nIndex < 2 ? m_pUserData[nIndex] : nullptr; }
 	void SetInterpolatedProperty( SoftbodyInterpolatedProperty_t property, float flValue, float flSpeed, uint32 nNameHash ) override { SetInterpolatedPropertyDelayed( property, 0.0f, flValue, flSpeed, nNameHash ); }
+	// AMNOTE: Floating-point status flags can vary with the compiler.
+	inline int CastCone( const Vector &vStart, const Vector &vDir, float flConePitch ) override;
 
 private:
 	CPhysicsSoftbody() = delete;
@@ -519,6 +542,50 @@ private:
 	void *m_pUserData[2];
 };
 
+inline int CPhysicsSoftbody::CastCone( const Vector &vStart, const Vector &vDir, float flConePitch )
+{
+	// Separate scalar SIMD operations preserve strict cone boundaries on targets with fused multiply-add.
+	const fltx4 vDirectionX = _mm_set_ss( vDir.x );
+	const fltx4 vDirectionY = _mm_set_ss( vDir.y );
+	const fltx4 vDirectionZ = _mm_set_ss( vDir.z );
+	const fltx4 vLengthSquared = _mm_add_ss( _mm_add_ss( _mm_mul_ss( vDirectionX, vDirectionX ), _mm_mul_ss( vDirectionY, vDirectionY ) ), _mm_mul_ss( vDirectionZ, vDirectionZ ) );
+	const fltx4 vInverseLengthSquared = _mm_div_ss( _mm_set_ss( 1.0f ), vLengthSquared );
+	const fltx4 vScaledDirectionX = _mm_mul_ss( vDirectionX, vInverseLengthSquared );
+	const fltx4 vScaledDirectionY = _mm_mul_ss( vDirectionY, vInverseLengthSquared );
+	const fltx4 vScaledDirectionZ = _mm_mul_ss( vDirectionZ, vInverseLengthSquared );
+	const uint32 nNodeCount = GetNodeCount();
+	if ( nNodeCount == 0 )
+		return 0;
+
+	const VectorAligned *pPositions = GetNodePositions( 1 );
+	const fltx4 vOrigin = _mm_set_ps( 0.0f, vStart.z, vStart.y, vStart.x );
+	float flClosestDistance = FLT_MAX;
+	int nClosestNode = 0;
+	for ( uint32 nNode = 0; nNode < nNodeCount; ++nNode )
+	{
+		const fltx4 vDelta = SubSIMD( LoadAlignedSIMD( pPositions[nNode].Base() ), vOrigin );
+		const fltx4 vX = _mm_set_ss( SubFloat( vDelta, 0 ) );
+		const fltx4 vY = _mm_set_ss( SubFloat( vDelta, 1 ) );
+		const fltx4 vZ = _mm_set_ss( SubFloat( vDelta, 2 ) );
+		const fltx4 vDistance = _mm_add_ss( _mm_add_ss( _mm_mul_ss( vZ, vScaledDirectionZ ), _mm_mul_ss( vY, vScaledDirectionY ) ), _mm_mul_ss( vX, vScaledDirectionX ) );
+		const float flDistance = SubFloat( vDistance, 0 );
+		if ( flDistance > 0.0f && flDistance < flClosestDistance )
+		{
+			const fltx4 vRadius = _mm_mul_ss( _mm_set_ss( flConePitch ), vDistance );
+			const fltx4 vOffsetX = _mm_sub_ss( vX, _mm_mul_ss( vDistance, vScaledDirectionX ) );
+			const fltx4 vOffsetY = _mm_sub_ss( vY, _mm_mul_ss( vDistance, vScaledDirectionY ) );
+			const fltx4 vOffsetZ = _mm_sub_ss( vZ, _mm_mul_ss( vDistance, vScaledDirectionZ ) );
+			const fltx4 vOffsetLengthSquared = _mm_add_ss( _mm_add_ss( _mm_mul_ss( vOffsetX, vOffsetX ), _mm_mul_ss( vOffsetY, vOffsetY ) ), _mm_mul_ss( vOffsetZ, vOffsetZ ) );
+			if ( SubFloat( vOffsetLengthSquared, 0 ) < SubFloat( _mm_mul_ss( vRadius, vRadius ), 0 ) )
+			{
+				flClosestDistance = flDistance;
+				nClosestNode = static_cast<int>( nNode );
+			}
+		}
+	}
+	return nClosestNode;
+}
+
 inline void CPhysicsSoftbody::ComputeInterpolatedNodePositions( float flFactor, VectorAligned *pPosOut )
 {
 	const uint32 nCount = GetNodeCount();
@@ -527,13 +594,20 @@ inline void CPhysicsSoftbody::ComputeInterpolatedNodePositions( float flFactor, 
 
 	const VectorAligned *pPrevious = GetNodePositions( 0 );
 	const VectorAligned *pCurrent = GetNodePositions( 1 );
-	const fltx4 vFactor = ReplicateX4( flFactor );
-	const fltx4 vPreviousFactor = ReplicateX4( 1.0f - flFactor );
+	const fltx4 vFactor = _mm_set_ss( flFactor );
+	const fltx4 vPreviousFactor = _mm_sub_ss( _mm_set_ss( 1.0f ), vFactor );
 	for ( uint32 nNode = 0; nNode < nCount; ++nNode )
 	{
-		const fltx4 vCurrent = MulSIMD( LoadAlignedSIMD( pCurrent[nNode].Base() ), vFactor );
-		const fltx4 vPrevious = MulSIMD( LoadAlignedSIMD( pPrevious[nNode].Base() ), vPreviousFactor );
-		StoreAlignedSIMD( pPosOut[nNode].Base(), AddSIMD( vCurrent, vPrevious ) );
+		const fltx4 vCurrent = LoadAlignedSIMD( pCurrent[nNode].Base() );
+		const fltx4 vPrevious = LoadAlignedSIMD( pPrevious[nNode].Base() );
+		// Keep both weighted terms separately rounded on fused multiply-add targets.
+		const auto weightedLane = [&]( int nLane )
+		{
+			const fltx4 vCurrentTerm = _mm_mul_ss( _mm_set_ss( SubFloat( vCurrent, nLane ) ), vFactor );
+			const fltx4 vPreviousTerm = _mm_mul_ss( _mm_set_ss( SubFloat( vPrevious, nLane ) ), vPreviousFactor );
+			return SubFloat( _mm_add_ss( vCurrentTerm, vPreviousTerm ), 0 );
+		};
+		StoreAlignedSIMD( pPosOut[nNode].Base(), _mm_set_ps( weightedLane( 3 ), weightedLane( 2 ), weightedLane( 1 ), weightedLane( 0 ) ) );
 	}
 }
 
